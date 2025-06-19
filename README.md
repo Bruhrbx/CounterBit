@@ -1,4 +1,4 @@
-# 🎮 CounterBit
+
 # 🎮 CounterBit
 
 **CounterBit** adalah game Python multiplayer sederhana dengan sistem server-client dan suara efek bawaan. Dirancang untuk dijalankan di Windows menggunakan Python + Pygame.
