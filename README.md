@@ -27,6 +27,7 @@ Membuka folder agar kamu bisa langsung klik client.py
 ---
 
 📁 Struktur Folder
+### Lihat [Disini](https://github.com/Bruhrbx/CounterBit/tree/main/CounterBit%20%7C%20File)
 
 ---
     
