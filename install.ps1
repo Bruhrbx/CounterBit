@@ -7,15 +7,15 @@ Write-Host "`n📦 Mengunduh file utama..." -ForegroundColor Cyan
 Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder\client.py"
 Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder\server.py"
 
-# Buat folder Sfx
-$sfxPath = "$baseFolder\Sfx"
+# Buat folder sfx (sesuai folder asli)
+$sfxPath = "$baseFolder\sfx"
 New-Item -ItemType Directory -Force -Path $sfxPath | Out-Null
 
-Write-Host "`n🎧 Mengunduh suara ke folder Sfx..." -ForegroundColor Cyan
-Invoke-WebRequest "$baseURL/Sfx/Intro.mp3" -OutFile "$sfxPath\Intro.mp3"
-Invoke-WebRequest "$baseURL/Sfx/Pew.mp3" -OutFile "$sfxPath\Pew.mp3"
-Invoke-WebRequest "$baseURL/Sfx/Spawn.mp3" -OutFile "$sfxPath\Spawn.mp3"
-Invoke-WebRequest "$baseURL/Sfx/Tada!.mp3" -OutFile "$sfxPath\Tada!.mp3"
+Write-Host "`n🎧 Mengunduh suara ke folder sfx..." -ForegroundColor Cyan
+Invoke-WebRequest "$baseURL/sfx/Intro.mp3" -OutFile "$sfxPath\Intro.mp3"
+Invoke-WebRequest "$baseURL/sfx/Pew.mp3" -OutFile "$sfxPath\Pew.mp3"
+Invoke-WebRequest "$baseURL/sfx/Spawn.mp3" -OutFile "$sfxPath\Spawn.mp3"
+Invoke-WebRequest "$baseURL/sfx/Tada.mp3" -OutFile "$sfxPath\Tada.mp3"
 
 # Cek dan install Python jika belum ada
 function Check-Python {
@@ -25,8 +25,7 @@ function Check-Python {
             Write-Host "`n🔍 Status Python: [Sudah Terinstal]"
             Write-Host "   └ Mengecek versi... $ver"
             return $true
-        }
-        else {
+        } else {
             Write-Host "`n🔍 Status Python: [Tidak dikenali]"
             return $false
         }
