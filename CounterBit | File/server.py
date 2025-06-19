@@ -39,7 +39,7 @@ script_dir = os.path.dirname(__file__)
 sfx_dir = os.path.join(script_dir, "Sfx")
 tada_sound = None
 try:
-    tada_sound_path = os.path.join(sfx_dir, "Tada!.mp3")
+    tada_sound_path = os.path.join(sfx_dir, "Tada.mp3")
     if os.path.exists(tada_sound_path):
         tada_sound = pygame.mixer.Sound(tada_sound_path)
         tada_sound.set_volume(0.6)
