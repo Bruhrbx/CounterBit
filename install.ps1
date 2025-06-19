@@ -1,70 +1,78 @@
-# =======================
-# CounterBit Updater.ps1
-# =======================
+# =========================
+# CounterBit Auto Installer
+# =========================
 
-# Path lokal & URL
+# Lokasi folder tujuan
 $baseFolder = "$env:USERPROFILE\Downloads\CounterBit"
-$localVersionFile = "$baseFolder\version.txt"
+New-Item -ItemType Directory -Force -Path $baseFolder | Out-Null
+
+# Base URL GitHub raw
 $baseURL = "https://raw.githubusercontent.com/Bruhrbx/CounterBit/main/CounterBit%20%7C%20File"
-$remoteVersionURL = "$baseURL/version.txt"
 
-# Cek apakah folder CounterBit ada
-if (!(Test-Path $baseFolder)) {
-    Write-Host "`n❌ Folder CounterBit tidak ditemukan. Jalankan install.ps1 dulu!" -ForegroundColor Red
-    exit
+# == FILE UTAMA ==
+Write-Host "`n📦 Mengunduh file utama..." -ForegroundColor Cyan
+Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder\client.py"
+Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder/server.py"
+Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder/version.txt"
+
+# == FOLDER SFX ==
+$sfxPath = "$baseFolder\sfx"
+New-Item -ItemType Directory -Force -Path $sfxPath | Out-Null
+
+Write-Host "`n🎧 Mengunduh suara ke folder sfx..." -ForegroundColor Cyan
+$sfxFiles = @("Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3")
+foreach ($file in $sfxFiles) {
+    Invoke-WebRequest "$baseURL/sfx/$file" -OutFile "$sfxPath\$file"
+    Write-Host "  ✔ $file"
 }
 
-# Ambil versi lokal
-if (Test-Path $localVersionFile) {
-    $localVersion = Get-Content $localVersionFile
-} else {
-    $localVersion = "0.0.0"
-}
+# == FOLDER UPDATE ==
+$updatePath = "$baseFolder\Update"
+New-Item -ItemType Directory -Force -Path $updatePath | Out-Null
 
-# Ambil versi terbaru dari GitHub
-try {
-    $remoteVersion = Invoke-RestMethod $remoteVersionURL
-} catch {
-    Write-Host "`n❌ Gagal mengambil versi dari GitHub." -ForegroundColor Red
-    exit
-}
+Write-Host "`n⚙️ Mengunduh updater..." -ForegroundColor Cyan
+Invoke-WebRequest "$baseURL/Update/Updater.py" -OutFile "$updatePath\Updater.py"
 
-Write-Host "`n📦 Versi saat ini: $localVersion"
-Write-Host "🌐 Versi terbaru : $remoteVersion"
-
-# Bandingkan versi
-if ($localVersion -ne $remoteVersion) {
-    $choice = Read-Host "`n🔁 Versi baru tersedia. Mau update ke versi $remoteVersion? (y/n)"
-    if ($choice -eq "y") {
-        Write-Host "`n⬇️  Updating... (version $remoteVersion)" -ForegroundColor Cyan
-
-        # Unduh file utama
-        Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder\client.py"
-        Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder/server.py"
-        Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder/version.txt"
-
-        # Update SFX
-        $sfxPath = "$baseFolder\sfx"
-        if (!(Test-Path $sfxPath)) {
-            New-Item -ItemType Directory -Path $sfxPath | Out-Null
+# == CEK PYTHON ==
+function Check-Python {
+    try {
+        $ver = & python --version 2>&1
+        if ($ver -match "Python") {
+            Write-Host "`n✅ Python terdeteksi: $ver" -ForegroundColor Green
+            return $true
+        } else {
+            return $false
         }
-
-        $sfxFiles = @("Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3")
-        foreach ($file in $sfxFiles) {
-            Invoke-WebRequest "$baseURL/sfx/$file" -OutFile "$sfxPath\$file"
-        }
-
-        # Update Updater.py
-        $updatePath = "$baseFolder\Update"
-        if (!(Test-Path $updatePath)) {
-            New-Item -ItemType Directory -Path $updatePath | Out-Null
-        }
-        Invoke-WebRequest "$baseURL/Update/Updater.py" -OutFile "$updatePath\Updater.py"
-
-        Write-Host "`n✅ Update selesai ke versi $remoteVersion!" -ForegroundColor Green
-    } else {
-        Write-Host "`n❎ Update dibatalkan." -ForegroundColor Yellow
+    } catch {
+        Write-Host "`n❌ Python tidak ditemukan." -ForegroundColor Red
+        return $false
     }
-} else {
-    Write-Host "`n🟢 Kamu sudah menggunakan versi terbaru ($localVersion)" -ForegroundColor Green
 }
+
+# == INSTALL PYTHON ==
+function Install-Python {
+    Write-Host "`n🚀 Menginstal Python 3.12.3..." -ForegroundColor Yellow
+    $installer = "$env:TEMP\python-installer.exe"
+    Invoke-WebRequest "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe" -OutFile $installer
+    Start-Process -Wait -FilePath $installer -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
+    Remove-Item $installer
+    Write-Host "✅ Python berhasil diinstal!" -ForegroundColor Green
+}
+
+# == INSTALL PYGAME ==
+function Install-Pygame {
+    Write-Host "`n🎮 Menginstal pygame..." -ForegroundColor Yellow
+    pip install pygame
+}
+
+# == EKSEKUSI ==
+if (-not (Check-Python)) {
+    Install-Python
+    $env:Path += ";C:\Program Files\Python312\Scripts;C:\Program Files\Python312\"
+}
+Install-Pygame
+
+# == SELESAI ==
+Write-Host "`n✅ Semua file sudah berhasil diunduh ke: $baseFolder" -ForegroundColor Green
+Start-Process "explorer.exe" -ArgumentList "$baseFolder"
+t-Process "explorer.exe" -ArgumentList "$baseFolder"
