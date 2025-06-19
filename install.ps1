@@ -22,16 +22,17 @@ function Check-Python {
     try {
         $ver = & python --version 2>&1
         if ($ver -match "Python") {
-            Write-Host "`n🔍 Status Python: [`e[32mSudah Terinstal\e[0m]`"
+            Write-Host "`n🔍 Status Python: [Sudah Terinstal]"
             Write-Host "   └ Mengecek versi... $ver"
             return $true
+        } else {
+            return $false
         }
     } catch {
-        Write-Host "`n🔍 Status Python: [`e[31mBelum Terinstal...\e[0m]"
+        Write-Host "`n🔍 Status Python: [Belum Terinstal...]"
         Write-Host "   └ Menginstal Python terbaru!"
         return $false
     }
-    return $false
 }
 
 function Install-Python {
@@ -56,6 +57,10 @@ if (-not (Check-Python)) {
 }
 
 Install-Pygame
+
+Write-Host "`n✅ Semua file sudah disiapkan di folder: $baseFolder" -ForegroundColor Green
+Start-Process "explorer.exe" "$baseFolder"
+
 
 Write-Host "`n✅ Semua file sudah disiapkan di folder: $baseFolder" -ForegroundColor Green
 Start-Process "explorer.exe" "$baseFolder"
