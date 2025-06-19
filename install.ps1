@@ -15,7 +15,7 @@ Write-Host "`n🎧 Mengunduh suara ke folder sfx..." -ForegroundColor Cyan
 Invoke-WebRequest "$baseURL/sfx/Intro.mp3" -OutFile "$sfxPath\Intro.mp3"
 Invoke-WebRequest "$baseURL/sfx/Pew.mp3" -OutFile "$sfxPath\Pew.mp3"
 Invoke-WebRequest "$baseURL/sfx/Spawn.mp3" -OutFile "$sfxPath\Spawn.mp3"
-Invoke-WebRequest "$baseURL/sfx/Tada!.mp3" -OutFile "$sfxPath\Tada!.mp3"
+Invoke-WebRequest "$baseURL/sfx/Tada.mp3" -OutFile "$sfxPath\Tada.mp3"
 
 # Cek dan install Python jika belum ada
 function Check-Python {
