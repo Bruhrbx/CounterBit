@@ -16,7 +16,7 @@ Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder\version.txt"
 $sfxPath = "$baseFolder\sfx"
 New-Item -ItemType Directory -Force -Path $sfxPath | Out-Null
 Write-Host "`n🎧 Mengunduh suara..." -ForegroundColor Cyan
-$sfxFiles = @("Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3","Dial_Up.mp3")
+$sfxFiles = @("Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3", "Dial_Up.mp3")
 foreach ($file in $sfxFiles) {
     Invoke-WebRequest "$baseURL/sfx/$file" -OutFile "$sfxPath\$file"
 }
