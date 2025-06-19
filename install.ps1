@@ -21,23 +21,35 @@ Invoke-WebRequest "$baseURL/Sfx/Tada!.mp3" -OutFile "$sfxPath\Tada!.mp3"
 function Check-Python {
     try {
         $ver = & python --version 2>&1
-        return $ver -match "Python"
+        if ($ver -match "Python") {
+            Write-Host "`n🔍 Status Python: [`e[32mSudah Terinstal\e[0m]`"
+            Write-Host "   └ Mengecek versi... $ver"
+            return $true
+        }
     } catch {
+        Write-Host "`n🔍 Status Python: [`e[31mBelum Terinstal...\e[0m]"
+        Write-Host "   └ Menginstal Python terbaru!"
         return $false
     }
+    return $false
 }
+
 function Install-Python {
-    Write-Host "`n🚀 Menginstal Python..." -ForegroundColor Yellow
+    Write-Host "`n🚀 Mengunduh installer Python..." -ForegroundColor Yellow
     $pythonInstaller = "$env:TEMP\python-installer.exe"
     Invoke-WebRequest "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe" -OutFile $pythonInstaller
+
     Start-Process -Wait -FilePath $pythonInstaller -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
     Remove-Item $pythonInstaller
+    Write-Host "`n✅ Python berhasil diinstal!" -ForegroundColor Green
 }
+
 function Install-Pygame {
     Write-Host "`n🎮 Menginstal Pygame..." -ForegroundColor Yellow
     pip install pygame
 }
 
+# Eksekusi pengecekan dan instalasi
 if (-not (Check-Python)) {
     Install-Python
     $env:Path += ";C:\Program Files\Python312\Scripts;C:\Program Files\Python312\"
@@ -45,13 +57,5 @@ if (-not (Check-Python)) {
 
 Install-Pygame
 
-Write-Host "`n✅ File berhasil diinstal di: $baseFolder" -ForegroundColor Green
+Write-Host "`n✅ Semua file sudah disiapkan di folder: $baseFolder" -ForegroundColor Green
 Start-Process "explorer.exe" "$baseFolder"
-
-
-# Install Pygame
-Install-Pygame
-
-# Buka folder hasil ekstrak
-Write-Host "`n✅ Selesai! File telah di-ekstrak ke:`n$targetFolder" -ForegroundColor Green
-Start-Process "explorer.exe" "$targetFolder"
