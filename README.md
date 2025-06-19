@@ -1,60 +1,66 @@
 # 🎮 CounterBit
+# 🎮 CounterBit
 
-CounterBit adalah game eksperimental berbasis Python + Pygame. Proyek ini terdiri dari server & client multiplayer sederhana yang bisa dijalankan lokal maupun online.
+**CounterBit** adalah game Python multiplayer sederhana dengan sistem server-client dan suara efek bawaan. Dirancang untuk dijalankan di Windows menggunakan Python + Pygame.
 
 ---
 
-## 🔧 Cara Instalasi Otomatis (Disarankan)
+## ⚙️ Cara Instal Otomatis (Mudah)
 
-Cukup jalankan perintah ini di **PowerShell** (Windows):
+Kamu cukup buka PowerShell dan jalankan perintah ini:
 
 ```powershell
 irm https://raw.githubusercontent.com/Bruhrbx/CounterBit/main/install.ps1 | iex
 ```
 
-# 📁 Isi Proyek
-### client.py	Game client
-### server.py	Server lokal
-### Sfx
+✅ Script ini akan:
+Mengunduh semua file (client.py, server.py, dan folder Sfx)
+
+Menyimpannya di folder: Downloads\CounterBit
+
+Menginstal Python 3.12 (jika belum ada)
+
+Menginstal pygame
+
+Membuka folder agar kamu bisa langsung klik client.py
 
 ---
 
-# Apa yang akan dilakukan:
-### 🗃️📥 Mengunduh file CounterBit.zip
-### 📂📤 Mengekstrak ke folder: C:\Users\<Nama Kamu>\Downloads\CounterBit
-### 📥 🐍 Menginstal Python (jika belum terpasang)
-### 📥 🐍 Menginstal Pygames
-Membuka folder hasil ekstrak agar kamu bisa langsung klik client.py
-
-🧠 Syarat Minimum
-Windows
-Internet
-Tidak perlu install manual Python (akan diurus otomatis oleh script
+📁 Struktur Folder
 
 ---
+    
+🕹️ Cara Main (Setelah Install)
+Buka folder Downloads\CounterBit
 
-🚀 Menjalankan Game
-Setelah instalasi:
+Jalankan server.py terlebih dahulu
 
-Buka folder Downloads/CounterBit
-Klik dua kali client.py untuk menjalankan game
+Lalu jalankan client.py
 
-# 🛠 Untuk Developer
-Jika kamu ingin menjalankan secara manual:
+Nikmati permainan 🎮
 
-# Clone repo
+Catatan: pygame akan otomatis terinstal oleh script
+
+🛠️ Jalankan Manual (Opsional)
+Jika kamu ingin clone secara manual:
+
+```bash
 git clone https://github.com/Bruhrbx/CounterBit.git
-cd CounterBit
-
-# Jalankan server dan client
-```python
+cd "CounterBit/CounterBit | File"
+pip install pygame
 python server.py
-```
-```python
 python client.py
 ```
-# 📩 Kontak
-Untuk pertanyaan, saran, atau kontribusi, silakan hubungi 
+🤝 Kontribusi
+Silakan fork, buat fitur baru, atau laporkan bug lewat Issues tab.
 
-incognit0_0 di Discord 
-Bruhrbx di GitHub
+📩 Kontak
+Created by PlatinumGravity — 🇮🇩 Indonesia Developer
+
+
+
+
+
+
+
+
