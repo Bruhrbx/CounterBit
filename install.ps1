@@ -25,10 +25,13 @@ function Check-Python {
             Write-Host "`n🔍 Status Python: [Sudah Terinstal]"
             Write-Host "   └ Mengecek versi... $ver"
             return $true
-        } else {
+        }
+        else {
+            Write-Host "`n🔍 Status Python: [Tidak dikenali]"
             return $false
         }
-    } catch {
+    }
+    catch {
         Write-Host "`n🔍 Status Python: [Belum Terinstal...]"
         Write-Host "   └ Menginstal Python terbaru!"
         return $false
@@ -59,8 +62,5 @@ if (-not (Check-Python)) {
 Install-Pygame
 
 Write-Host "`n✅ Semua file sudah disiapkan di folder: $baseFolder" -ForegroundColor Green
-Start-Process "explorer.exe" "$baseFolder"
+Start-Process "explorer.exe" -ArgumentList "$baseFolder"
 
-
-Write-Host "`n✅ Semua file sudah disiapkan di folder: $baseFolder" -ForegroundColor Green
-Start-Process "explorer.exe" "$baseFolder"
