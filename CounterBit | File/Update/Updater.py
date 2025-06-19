@@ -1,58 +1,49 @@
-import requests
 import os
+import urllib.request
 
-GITHUB_RAW = "https://raw.githubusercontent.com/Bruhrbx/CounterBit/main/CounterBit%20%7C%20File"
-LOCAL_VERSION_FILE = "version.txt"
-REMOTE_VERSION_URL = f"{GITHUB_RAW}/version.txt"
+# Tentukan path instalasi CounterBit
+base_folder = os.path.join(os.path.expanduser("~"), "Downloads", "CounterBit")
+sfx_folder = os.path.join(base_folder, "sfx")
+update_folder = os.path.join(base_folder, "Update")
 
-def get_local_version():
-    if not os.path.exists(LOCAL_VERSION_FILE):
-        return "0.0.0"
-    with open(LOCAL_VERSION_FILE, "r") as f:
-        return f.read().strip()
+# URL GitHub
+base_url = "https://raw.githubusercontent.com/Bruhrbx/CounterBit/main/CounterBit%20%7C%20File"
 
-def get_remote_version():
+# File utama yang perlu diunduh
+main_files = {
+    "client.py": os.path.join(base_folder, "client.py"),
+    "server.py": os.path.join(base_folder, "server.py"),
+    "version.txt": os.path.join(base_folder, "version.txt"),
+    "Update/Updater.py": os.path.join(update_folder, "Updater.py")
+}
+
+# File sfx yang perlu diunduh
+sfx_files = ["Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3"]
+
+# Pastikan folder ada
+os.makedirs(base_folder, exist_ok=True)
+os.makedirs(sfx_folder, exist_ok=True)
+os.makedirs(update_folder, exist_ok=True)
+
+def download_file(url, dest):
     try:
-        response = requests.get(REMOTE_VERSION_URL)
-        if response.status_code == 200:
-            return response.text.strip()
-    except:
-        return None
+        urllib.request.urlretrieve(url, dest)
+        print(f"[✓] {os.path.basename(dest)} berhasil diunduh")
+    except Exception as e:
+        print(f"[X] Gagal mengunduh {url} -> {e}")
 
-def download_file(path):
-    url = f"{GITHUB_RAW}/{path}"
-    local_path = os.path.join(".", path)
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    with open(local_path, "wb") as f:
-        f.write(requests.get(url).content)
+# Unduh file utama
+print("📥 Mengunduh file utama:")
+for filename, path in main_files.items():
+    download_file(f"{base_url}/{filename}", path)
 
-def update_all():
-    print("🔄 Mengunduh versi terbaru...")
-    files_to_update = [
-        "client.py",
-        "server.py",
-        "version.txt",
-        "sfx/Intro.mp3",
-        "sfx/Pew.mp3",
-        "sfx/Spawn.mp3",
-        "sfx/Tada.mp3"
-    ]
-    for file in files_to_update:
-        download_file(file)
-        print(f"✅ Terupdate: {file}")
-    print("✅ Update selesai!")
+# Unduh file sfx
+print("\n🎧 Mengunduh file suara:")
+for sfx in sfx_files:
+    sfx_url = f"{base_url}/sfx/{sfx}"
+    sfx_dest = os.path.join(sfx_folder, sfx)
+    download_file(sfx_url, sfx_dest)
 
-def main():
-    print("📦 Mengecek update...")
-    local = get_local_version()
-    remote = get_remote_version()
-    print(f"Versi Lokal : {local}")
-    print(f"Versi Remote: {remote}")
-    if remote and local != remote:
-        print("🚀 Update tersedia!")
-        update_all()
-    else:
-        print("👍 Sudah versi terbaru.")
+print("\n✅ Update selesai. Semua file disimpan di:")
+print(base_folder)
 
-if __name__ == "__main__":
-    main()
