@@ -35,11 +35,13 @@ try:
     pew_sound = pygame.mixer.Sound(os.path.join(sfx_dir, "Pew.mp3"))
     spawn_sound = pygame.mixer.Sound(os.path.join(sfx_dir, "Spawn.mp3"))
     dialup_sound = pygame.mixer.Sound(os.path.join(sfx_dir, "Dial_Up.mp3")) # Tambahan
+    tada_sound = pygame.mixer.Sound(os.path.join(sfx_dir, "tada.mp3")) # Tambahan
 
     intro_sound.set_volume(0.5)
     pew_sound.set_volume(0.3)
     spawn_sound.set_volume(0.7)
-    dialup_sound.set_volume(0.6) # Volume untuk suara dial-up
+    dialup_sound.set_volume(1) # Volume untuk suara dial-up
+    tada_sound.set_volume(0.9) # Volume untuk suara Tada!
 except pygame.error as e:
     print(f"Error memuat file suara: {e}")
     print("Pastikan semua file suara tersedia di folder 'CounterBit/Sfx/'.")
@@ -68,14 +70,15 @@ def draw_text_center(text, y, color=(255, 255, 255), font_to_use=font):
 
 # --- Input Username, IP Server, dan Password ---
 username = input("Masukkan username: ")
-server_ip = input("Masukkan alamat IP server (misal: 127.0.0.1): ")
-client_password = input("Masukkan password server (kosongkan jika tidak ada password): ").strip()
-
-# --- Mainkan suara koneksi jika password dimasukkan (dari skrip kedua) ---
-if client_password and dialup_sound:
-    dialup_sound.play()
-    print("\nConnecting to server......")
-    print("Pc -------O--------Server")
+server_ip = input("Masukkan IP server port tidak termasuk ! (Contoh: 127.0.0.1): ")
+client_password = input(f"Masukkan password untuk {server_ip} (kosongkan jika tidak ada password): ").strip()
+print("\nRequest Connecting to server......")
+time.sleep(5)
+print("\nConnecting to server......")
+dialup_sound.play()
+time.sleep(19)
+print("\nSuccess Connecting to", server_ip)
+tada_sound.play()
 
 
 # --- Pengaturan Jaringan ---
