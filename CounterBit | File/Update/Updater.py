@@ -1,5 +1,6 @@
 import os
 import urllib.request
+import time
 
 # Lokasi file versi lokal
 base_folder = os.path.join(os.path.expanduser("~"), "Downloads", "CounterBit")
@@ -36,13 +37,15 @@ if versi_terbaru is None:
     exit()
 
 if versi_sekarang == versi_terbaru:
-    print("✅ Punya kamu sudah Versi Lebih Baru")
+    print("✅ Punya kamu sudah Versi Lebih Baru :3")
+    time.sleep(6)
     exit()
 
 # Jika versi beda, tanya user
 jawaban = input(f"Ada versi baru v{versi_terbaru}. Mau update? (y/n): ").lower()
 if jawaban != "y":
     print("❌ Update dibatalkan.")
+    time.sleep(6)
     exit()
 
 # ------------------ PROSES UPDATE ------------------
@@ -90,4 +93,5 @@ for sfx in sfx_files:
     download_file(sfx_url, sfx_dest)
 
 print("\n✅ Update selesai. Semua file disimpan di:")
+time.sleep(6)
 print(base_folder)
