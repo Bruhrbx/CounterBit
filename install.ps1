@@ -53,7 +53,7 @@ function Install-Pygame {
     pip install pygame
 }
 
-function Install-Pygame {
+function Install-Thinker {
     Write-Host "`n🎮 Menginstal Thinker..." -ForegroundColor Yellow
     pip install tk
 }
