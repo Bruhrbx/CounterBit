@@ -1,40 +1,18 @@
-import socket
+import tkinter as tk
+from tkinter import scrolledtext, messagebox, simpledialog
 import threading
 import json
 import sys
 import time
 import os
-import math 
-import pygame 
+import math
+import pygame
+import socket
+import queue
 
-# --- Global Variables ---
-clients = {}
-players = {}
-alive_status = {}
-operators = set()
-server_running = True
-lock = threading.Lock()
-server_name = "DefaultServer"
-current_language = {}
-server_password = None
-max_players = 0 # 0 berarti tidak ada batas pemain
-player_kills = {} # NEW: Dictionary untuk menyimpan skor kill setiap pemain
-# --- Peluru di Server ---
-bullet_data = {
-    "active": False,
-    "x": 0,
-    "y": 0,
-    "angle": 0,
-    "owner": "", 
-    "speed": 15, 
-    "size": 5    
-}
-# --- End Peluru di Server ---
-
-# --- Inisialisasi Pygame Mixer (Untuk Suara di Server) ---
+# --- Global Variables (Sebisa mungkin akan diubah jadi atribut kelas) ---
 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
 
-# --- Muat File Suara Tada! ---
 script_dir = os.path.dirname(__file__)
 sfx_dir = os.path.join(script_dir, "Sfx")
 tada_sound = None
@@ -48,16 +26,14 @@ try:
 except pygame.error as e:
     print(f"[{time.strftime('%H:%M:%S')}] Error memuat suara 'Tada!.mp3': {e}")
     tada_sound = None
-# --- End Muat File Suara ---
 
-
-# --- Language Dictionaries ---
+# --- Language Dictionaries (Tetap global untuk akses mudah) ---
 LANG_EN = {
     "server_name_prompt": "Enter a name for this server (e.g., qwertino): ",
     "server_password_prompt": "Enter a password for the server (leave blank for no password): ",
-    "server_started": "Server '{server_name}' started. Player Limit: {limit}.", # DIUBAH
-    "share_address": "IP: {host}:{port}", 
-    "unknown_command": "Unknown command. Use: kick [username], op [username], unop [username], check [username], list, sertask, or playerlimit [number]", 
+    "server_started": "Server '{server_name}' started. Player Limit: {limit}.",
+    "share_address": "IP: {host}:{port}",
+    "unknown_command": "Unknown command. Use: kick [username], op [username], unop [username], check [username], list, sertask, or playerlimit [number]",
     "kicking_player": "Kicking {name}",
     "player_not_found": "Player {name} not found.",
     "player_op_success": "{name} is now an operator.",
@@ -75,8 +51,8 @@ LANG_EN = {
     "client_forcibly_disconnected": "Client {username_or_addr} forcibly disconnected.",
     "client_handling_error": "Error while handling client {username_or_addr}: {error}",
     "operator_kill_attempt": "{username} tried to kill operator {target} (failed).",
-    "player_killed_server_log": "{killer} killed {target}", 
-    "player_respawned_server_log": "{username} respawned.", 
+    "player_killed_server_log": "{killer} killed {target}",
+    "player_respawned_server_log": "{username} respawned.",
     "operator_respawn_attempt": "Operator {username} tried to respawn (already alive).",
     "operator_removed_on_disconnect": "{username} removed from operator list.",
     "op_message_client": "You are now an operator!",
@@ -96,33 +72,40 @@ LANG_EN = {
     "player_list_item": "{index}. {username} (Status: {status}{operator_suffix})",
     "status_alive": "ALIVE",
     "status_dead": "DEAD",
-    "is_operator": " (OP)",
+    "is_operator": " (OP)", # Added this
     "password_incorrect": "Incorrect password. Disconnecting.",
     "password_required": "Password required for this server.",
-    "server_tasks_prompt": "What do you want to do with this server?", 
-    "task_shutdown": "Shutdown (1)", 
-    "task_restart": "Restart (2)", 
-    "task_kick_all": "Kick all (3)", 
-    "task_set_limit": "Set Player Limit (4)", 
-    "type_choice": "Type: ", 
-    "invalid_task_choice": "Invalid choice. Please type 1, 2, 3, or 4.", 
-    "kicking_all_players": "Kicking all players...", 
-    "commands_for_server_title": "Commands For Server !", 
-    "player_limit_prompt": "Enter max players (0 for no limit): ", 
-    "player_limit_set": "Player limit set to {limit}.", 
-    "limit_invalid_number": "Invalid number for limit. Please enter a whole number.", 
-    "limit_invalid_negative": "Player limit cannot be negative.", 
-    "server_full_kick_reason": "Server is full! Players: {current}/{max}", 
-    "connection_rejected_full": "Connection from {addr} rejected. Server is full.", 
-    "username_already_in_use": "Username '{username}' is already in use.", # BARU
+    "server_tasks_prompt": "What do you want to do with this server?",
+    "task_shutdown": "Shutdown (1)",
+    "task_restart": "Restart (2)",
+    "task_kick_all": "Kick all (3)",
+    "task_set_limit": "Set Player Limit (4)",
+    "type_choice": "Type: ",
+    "invalid_task_choice": "Invalid choice. Please type 1, 2, 3, or 4.",
+    "kicking_all_players": "Kicking all players...",
+    "commands_for_server_title": "Commands For Server !",
+    "player_limit_prompt": "Enter max players (0 for no limit): ",
+    "player_limit_set": "Player limit set to {limit}.",
+    "limit_invalid_number": "Invalid number for limit. Please enter a whole number.",
+    "limit_invalid_negative": "Player limit cannot be negative.",
+    "server_full_kick_reason": "Server is full! Players: {current}/{max}",
+    "connection_rejected_full": "Connection from {addr} rejected. Server is full.",
+    "username_already_in_use": "Username '{username}' is already in use.",
+    "edit_server_settings_title": "Edit Server Settings",
+    "edit_server_name_label": "Server Name:",
+    "edit_server_password_label": "Server Password:",
+    "confirm_save_title": "Confirm Save",
+    "confirm_save_message": "Are you sure you want to save these changes?",
+    "changes_saved_message": "Server settings saved. Restart server to apply changes to existing connections.",
+    "changes_discarded_message": "Changes discarded."
 }
 
 LANG_ID = {
     "server_name_prompt": "Masukkan nama untuk server ini (contoh: qwertino): ",
     "server_password_prompt": "Masukkan password untuk server (kosongkan jika tanpa password): ",
-    "server_started": "Server '{server_name}' dimulai. Batas Pemain: {limit}.", # DIUBAH
-    "share_address": "IP: {host}:{port}", 
-    "unknown_command": "Perintah tidak dikenal. Gunakan: kick [username], op [username], unop [username], check [username], list, sertask, atau playerlimit [angka]", 
+    "server_started": "Server '{server_name}' dimulai. Batas Pemain: {limit}.",
+    "share_address": "IP: {host}:{port}",
+    "unknown_command": "Perintah tidak dikenal. Gunakan: kick [username], op [username], unop [username], check [username], list, sertask, atau playerlimit [angka]",
     "kicking_player": "Mengeluarkan {name}",
     "player_not_found": "Pemain {name} tidak ditemukan.",
     "player_op_success": "{name} sekarang adalah operator.",
@@ -140,8 +123,8 @@ LANG_ID = {
     "client_forcibly_disconnected": "Klien {username_or_addr} terputus secara paksa.",
     "client_handling_error": "Error saat menangani klien {username_or_addr}: {error}",
     "operator_kill_attempt": "{username} mencoba membunuh operator {target} (gagal).",
-    "player_killed_server_log": "{killer} membunuh {target}", 
-    "player_respawned_server_log": "{username} hidup kembali.", 
+    "player_killed_server_log": "{killer} membunuh {target}",
+    "player_respawned_server_log": "{username} hidup kembali.",
     "operator_respawn_attempt": "Operator {username} mencoba respawn (sudah hidup).",
     "operator_removed_on_disconnect": "{username} dihapus dari daftar operator.",
     "op_message_client": "Anda sekarang adalah operator!",
@@ -161,27 +144,35 @@ LANG_ID = {
     "player_list_item": "{index}. {username} (Status: {status}{operator_suffix})",
     "status_alive": "HIDUP",
     "status_dead": "MATI",
-    "is_operator": " (OP)",
+    "is_operator": " (OP)", # Added this
     "password_incorrect": "Password salah. Memutus koneksi.",
     "password_required": "Password dibutuhkan untuk server ini.",
-    "server_tasks_prompt": "Apa yang Anda lakukan ke server ini?", 
-    "task_shutdown": "ShutDown (1)", 
-    "task_restart": "Restart (2)", 
-    "task_kick_all": "Kick all (3)", 
-    "task_set_limit": "Atur Batas Pemain (4)", 
-    "type_choice": "Ketik: ", 
-    "invalid_task_choice": "Pilihan tidak valid. Silakan ketik 1, 2, 3, atau 4.", 
-    "kicking_all_players": "Mengeluarkan semua pemain...", 
-    "commands_for_server_title": "Perintah Untuk Server !", 
-    "player_limit_prompt": "Masukkan batas pemain maksimal (0 untuk tanpa batas): ", 
-    "player_limit_set": "Batas pemain diatur ke {limit}.", 
-    "limit_invalid_number": "Angka tidak valid untuk batas. Harap masukkan angka bulat.", 
-    "limit_invalid_negative": "Batas pemain tidak bisa negatif.", 
-    "server_full_kick_reason": "Server penuh! Pemain: {current}/{max}", 
-    "connection_rejected_full": "Koneksi dari {addr} ditolak. Server penuh.", 
-    "username_already_in_use": "Username '{username}' sudah digunakan.", # BARU
+    "server_tasks_prompt": "Apa yang Anda lakukan ke server ini?",
+    "task_shutdown": "ShutDown (1)",
+    "task_restart": "Restart (2)",
+    "task_kick_all": "Kick all (3)",
+    "task_set_limit": "Atur Batas Pemain (4)",
+    "type_choice": "Ketik: ",
+    "invalid_task_choice": "Pilihan tidak valid. Silakan ketik 1, 2, 3, atau 4.",
+    "kicking_all_players": "Mengeluarkan semua pemain...",
+    "commands_for_server_title": "Perintah Untuk Server !",
+    "player_limit_prompt": "Masukkan batas pemain maksimal (0 untuk tanpa batas): ",
+    "player_limit_set": "Batas pemain diatur ke {limit}.",
+    "limit_invalid_number": "Angka tidak valid untuk batas. Harap masukkan angka bulat.",
+    "limit_invalid_negative": "Batas pemain tidak bisa negatif.",
+    "server_full_kick_reason": "Server penuh! Pemain: {current}/{max}",
+    "connection_rejected_full": "Koneksi dari {addr} ditolak. Server penuh.",
+    "username_already_in_use": "Username '{username}' sudah digunakan.",
+    "edit_server_settings_title": "Edit Pengaturan Server",
+    "edit_server_name_label": "Nama Server:",
+    "edit_server_password_label": "Password Server:",
+    "confirm_save_title": "Konfirmasi Simpan",
+    "confirm_save_message": "Anda yakin ingin menyimpan perubahan ini?",
+    "changes_saved_message": "Pengaturan server disimpan. Restart server untuk menerapkan perubahan pada koneksi yang sudah ada.",
+    "changes_discarded_message": "Perubahan dibatalkan."
 }
 
+current_language = LANG_EN # Default language
 
 def set_language(lang_code):
     """Sets the global language dictionary."""
@@ -199,492 +190,705 @@ def get_text(key, **kwargs):
         set_language("ENG")
     return current_language.get(key, f"MISSING_TEXT_KEY[{key}]").format(**kwargs)
 
-# --- FUNGSI BARU: Mengatur Batas Pemain ---
-def set_player_limit(limit_str):
-    global max_players
-    try:
-        limit = int(limit_str)
-        if limit < 0:
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('limit_invalid_negative')}")
-        else:
-            max_players = limit
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_limit_set', limit=max_players)}")
-    except ValueError:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('limit_invalid_number')}")
-# --- END FUNGSI BARU ---
+class ConterbitServerApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("Conterbit Server Manager")
+        master.geometry("1000x650")
 
+        # --- Server State Variables (Moved from global to class attributes) ---
+        self.clients = {}
+        self.players = {}
+        self.alive_status = {}
+        self.operators = set()
+        self.server_running = False # Initial state
+        self.lock = threading.Lock()
+        self.server_name = "DefaultServer"
+        self.server_password = None
+        self.max_players = 0 # 0 means no player limit
+        self.player_kills = {}
+        self.bullet_data = {
+            "active": False,
+            "x": 0,
+            "y": 0,
+            "angle": 0,
+            "owner": "",
+            "speed": 15,
+            "size": 5
+        }
+        self.server_socket = None # To hold the server socket object
+        self.server_accept_thread = None
+        self.server_command_thread = None
+        self.server_port = 5555
+        self.server_host = self._get_local_ip()
 
-def handle_client(conn, addr):
-    """
-    Handles individual communication with each connected client.
-    Each client will have its own handle_client() thread.
-    """
-    global clients, players, alive_status, server_running, server_name, operators, server_password, bullet_data, max_players, player_kills # Tambahkan player_kills
-    username = None
-    try:
-        data = conn.recv(1024).decode()
-        data_json = json.loads(data)
-        username = data_json.get("username")
-        client_password = data_json.get("password")
+        # Queue for logging messages from server threads to GUI
+        self.log_queue = queue.Queue()
 
-        with lock: 
-            # 1. Periksa username duplikat lebih awal (opsional, tapi bagus untuk mencegah masalah)
-            if username in players:
-                print(f"[{time.strftime('%H:%M:%S')}] {get_text('username_already_in_use', username=username)}")
-                conn.send(json.dumps({"kick": True, "reason": get_text('username_already_in_use', username=username)}).encode())
-                conn.close()
-                return
+        # --- UI Setup ---
+        self._setup_ui()
 
-            # 2. Periksa apakah server penuh
-            if max_players > 0 and len(players) >= max_players:
-                print(f"[{time.strftime('%H:%M:%S')}] {get_text('connection_rejected_full', addr=addr)}")
-                kick_reason = get_text("server_full_kick_reason", current=len(players), max=max_players)
-                conn.send(json.dumps({"kick": True, "reason": kick_reason}).encode())
-                conn.close()
-                return 
+        # Start periodic UI updates
+        self.master.after(100, self._update_ui)
+        self.master.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def _setup_ui(self):
+        # Top Bar for Server Control
+        self.top_bar_frame = tk.Frame(self.master, bd=2, relief="groove")
+        self.top_bar_frame.pack(fill=tk.X, pady=(0, 5), padx=10)
+
+        self.start_button = tk.Button(self.top_bar_frame, text="Start Server", command=self.start_server, bg="green", fg="white", font=("Arial", 10, "bold"))
+        self.start_button.pack(side=tk.LEFT, padx=5)
+
+        self.stop_button = tk.Button(self.top_bar_frame, text="Stop Server", command=self.stop_server, bg="red", fg="white", font=("Arial", 10, "bold"), state=tk.DISABLED)
+        self.stop_button.pack(side=tk.LEFT, padx=5)
+
+        self.restart_button = tk.Button(self.top_bar_frame, text="Restart Server", command=self.restart_server, bg="orange", fg="white", font=("Arial", 10, "bold"), state=tk.DISABLED)
+        self.restart_button.pack(side=tk.LEFT, padx=5)
+        
+        # New: Edit button
+        self.edit_button = tk.Button(self.top_bar_frame, text="Edit", command=self._edit_server_settings, bg="blue", fg="white", font=("Arial", 10, "bold"), state=tk.DISABLED)
+        self.edit_button.pack(side=tk.LEFT, padx=5)
+
+        # --- Main content frames (Left and Right) ---
+        self.main_content_frame = tk.Frame(self.master)
+        self.main_content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # Left Panel (Stats and Players)
+        self.left_panel = tk.Frame(self.main_content_frame, width=280, bg="#f0f0f0", bd=2, relief="groove")
+        self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, padx=5, pady=5)
+        self.left_panel.pack_propagate(False)
+
+        # Stats Section
+        self.stats_label = tk.Label(self.left_panel, text="Server Stats", font=("Arial", 12, "bold"), bg="#f0f0f0")
+        self.stats_label.pack(pady=(5, 2))
+
+        self.stats_text = scrolledtext.ScrolledText(self.left_panel, wrap=tk.WORD, width=35, height=8, font=("Consolas", 9), bg="#e0e0e0")
+        self.stats_text.pack(padx=5, pady=5, fill=tk.X)
+        self.stats_text.config(state=tk.DISABLED)
+
+        # Player List Section
+        self.players_label = tk.Label(self.left_panel, text="Online Players", font=("Arial", 12, "bold"), bg="#f0f0f0")
+        self.players_label.pack(pady=(10, 2))
+
+        self.player_list_text = scrolledtext.ScrolledText(self.left_panel, wrap=tk.WORD, width=35, height=20, font=("Arial", 10), bg="white")
+        self.player_list_text.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+        self.player_list_text.config(state=tk.DISABLED)
+
+        # Right Panel (Log and Chat, Command Bar)
+        self.right_panel = tk.Frame(self.main_content_frame, bg="#e0e0e0", bd=2, relief="groove")
+        self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Log and Chat Section
+        self.log_label = tk.Label(self.right_panel, text="Server Log & Chat", font=("Arial", 12, "bold"), bg="#e0e0e0")
+        self.log_label.pack(pady=(5, 2))
+
+        self.log_text = scrolledtext.ScrolledText(self.right_panel, wrap=tk.WORD, font=("Consolas", 9), bg="black", fg="lightgray", insertbackground="white")
+        self.log_text.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+        self.log_text.config(state=tk.DISABLED)
+
+        # Command Bar Section
+        self.command_frame = tk.Frame(self.right_panel, bg="#e0e0e0")
+        self.command_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+
+        self.command_label = tk.Label(self.command_frame, text="Server Command:", font=("Arial", 10), bg="#e0e0e0")
+        self.command_label.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.command_entry = tk.Entry(self.command_frame, font=("Arial", 10), width=50, bg="white", fg="black")
+        self.command_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.command_entry.bind("<Return>", self._handle_command_input)
+
+        self.send_button = tk.Button(self.command_frame, text="Send", command=self._handle_command_input, font=("Arial", 10), bg="#d0d0d0")
+        self.send_button.pack(side=tk.RIGHT, padx=(5, 0))
+
+    def _log_to_ui(self, message):
+        """Puts a message into the queue to be displayed in the UI log."""
+        self.log_queue.put(f"[{time.strftime('%H:%M:%S')}] {message}")
+
+    def _update_ui(self):
+        """Periodically pulls messages from the log queue and updates UI elements."""
+        # Update log
+        while not self.log_queue.empty():
+            message = self.log_queue.get_nowait()
+            self.log_text.config(state=tk.NORMAL)
+            self.log_text.insert(tk.END, f"{message}\n")
+            self.log_text.see(tk.END)
+            self.log_text.config(state=tk.DISABLED)
+        
+        # Update stats and player list
+        self._update_stats_and_players()
+
+        # Reschedule next update
+        self.master.after(100, self._update_ui)
+
+    def _update_stats_and_players(self):
+        with self.lock:
+            # Update Stats
+            self.stats_text.config(state=tk.NORMAL)
+            self.stats_text.delete(1.0, tk.END)
+            self.stats_text.insert(tk.END, f"Server Name: {self.server_name}\n")
+            self.stats_text.insert(tk.END, f"IP Address: {self.server_host}:{self.server_port}\n")
+            self.stats_text.insert(tk.END, f"Players: {len(self.players)} / {('Unlimited' if self.max_players == 0 else self.max_players)}\n")
             
-            # 3. Periksa password
-            if server_password and client_password != server_password:
-                print(f"[{time.strftime('%H:%M:%S')}] {addr} tried to connect with incorrect password.")
-                conn.send(json.dumps({"kick": True, "reason": get_text("password_incorrect")}).encode())
-                conn.close()
-                return
-            elif server_password and not client_password:
-                print(f"[{time.strftime('%H:%M:%S')}] {addr} tried to connect without password (password required).")
-                conn.send(json.dumps({"kick": True, "reason": get_text("password_required")}).encode())
-                conn.close()
-                return
-
-            # Jika lolos semua pemeriksaan, tambahkan klien
-            players[username] = {"x": 300, "y": 300, "shoot": False, "angle": 0}
-            alive_status[username] = True
-            clients[username] = conn
-            player_kills[username] = 0 # NEW: Inisialisasi skor kill untuk pemain baru
-
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('client_connected', username=username, addr=addr)}")
-
-        while server_running:
-            data = conn.recv(4096).decode()
-            if not data:
-                break
+            # Bullet info
+            self.stats_text.insert(tk.END, f"Bullet Active: {self.bullet_data['active']}\n")
+            if self.bullet_data["active"]:
+                self.stats_text.insert(tk.END, f"  Owner: {self.bullet_data['owner']}\n")
+                self.stats_text.insert(tk.END, f"  Pos: ({self.bullet_data['x']:.0f}, {self.bullet_data['y']:.0f})\n")
             
+            self.stats_text.config(state=tk.DISABLED)
+
+            # Update Player List
+            self.player_list_text.config(state=tk.NORMAL)
+            self.player_list_text.delete(1.0, tk.END)
+            
+            if not self.players:
+                self.player_list_text.insert(tk.END, "No players online.")
+            else:
+                for uname, info in self.players.items():
+                    status = "ALIVE" if self.alive_status.get(uname, False) else "DEAD"
+                    # --- MODIFIKASI INI DIMULAI ---
+                    op_suffix = get_text('is_operator') if uname in self.operators else "" # Use get_text for (OP)
+                    # --- MODIFIKASI INI SELESAI ---
+                    kills_info = f" (Kills: {self.player_kills.get(uname, 0)})"
+                    self.player_list_text.insert(tk.END, f"- {uname} ({status}{op_suffix}){kills_info}\n")
+            self.player_list_text.config(state=tk.DISABLED)
+
+    def _get_local_ip(self):
+        """Gets the local IP address of the machine."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            IP = s.getsockname()[0]
+        except Exception:
+            IP = "127.0.0.1"
+        finally:
+            s.close()
+        return IP
+
+    def start_server(self):
+        if self.server_running:
+            self._log_to_ui("[UI]: Server is already running.")
+            return
+
+        # Prompt for server name and password (UI based)
+        # Only prompt if not set via edit or previous run
+        if not self.server_name or not (self.server_password is not None): # Check if password is explicitly None (no password)
+            temp_name = simpledialog.askstring("Server Setup", get_text("server_name_prompt"), initialvalue=self.server_name)
+            if temp_name is None: return # User cancelled
+            self.server_name = temp_name if temp_name else "DefaultServer"
+
+            temp_password = simpledialog.askstring("Server Setup", get_text("server_password_prompt"), show='*')
+            self.server_password = temp_password if temp_password else None
+
+
+        self.server_running = True
+        self._log_to_ui(get_text('server_started', server_name=self.server_name, limit=('Unlimited' if self.max_players == 0 else self.max_players)))
+        self._log_to_ui(get_text('share_address', host=self.server_host, port=self.server_port))
+
+        try:
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.server_socket.bind((self.server_host, self.server_port))
+            self.server_socket.listen()
+        except Exception as e:
+            self._log_to_ui(get_text('connection_refused_server_bind_error', host=self.server_host, port=self.server_port, error=e))
+            self.server_running = False
+            return
+
+        self.server_accept_thread = threading.Thread(target=self._server_accept_loop, daemon=True)
+        self.server_accept_thread.start()
+
+        # Enable/Disable buttons
+        self.start_button.config(state=tk.DISABLED)
+        self.stop_button.config(state=tk.NORMAL)
+        self.restart_button.config(state=tk.NORMAL)
+        self.edit_button.config(state=tk.NORMAL) # Enable edit button
+
+    def _server_accept_loop(self):
+        """Main loop for the server to accept new client connections."""
+        while self.server_running:
+            try:
+                self.server_socket.settimeout(0.5) # Small timeout to allow checking server_running flag
+                conn, addr = self.server_socket.accept()
+                
+                with self.lock:
+                    if self.max_players > 0 and len(self.players) >= self.max_players:
+                        self._log_to_ui(get_text('connection_rejected_full', addr=addr))
+                        kick_reason = get_text("server_full_kick_reason", current=len(self.players), max=self.max_players)
+                        conn.send(json.dumps({"kick": True, "reason": kick_reason}).encode())
+                        conn.close()
+                        continue
+                
+                client_thread = threading.Thread(target=self._handle_client, args=(conn, addr), daemon=True)
+                client_thread.start()
+
+            except socket.timeout:
+                pass # Expected, just means no new connection in this interval
+            except Exception as e:
+                if self.server_running:
+                    self._log_to_ui(f"Error in server accept loop: {e}")
+                break # Exit loop if a critical error occurs
+
+    def _handle_client(self, conn, addr):
+        username = None
+        try:
+            data = conn.recv(1024).decode()
             data_json = json.loads(data)
+            username = data_json.get("username")
+            client_password = data_json.get("password")
 
-            with lock:
-                if data_json.get("shoot") and not bullet_data["active"]:
-                    player_x = players[username]["x"]
-                    player_y = players[username]["y"]
-                    player_angle = data_json.get("angle", 0) 
-                    
-                    bullet_data["active"] = True
-                    bullet_data["x"] = player_x + 20 * math.cos(player_angle)
-                    bullet_data["y"] = player_y + 20 * math.sin(player_angle)
-                    bullet_data["angle"] = player_angle
-                    bullet_data["owner"] = username 
-            
-                if alive_status.get(username, False):
-                    players[username].update({
-                        "x": data_json["x"],
-                        "y": data_json["y"],
-                        "shoot": data_json.get("shoot", False),
-                        "angle": data_json["angle"]
-                    })
-                elif username in players and not alive_status.get(username, False):
-                    if username not in operators:
-                        alive_status[username] = True
-                        players[username].update({
+            with self.lock:
+                if username in self.players:
+                    self._log_to_ui(get_text('username_already_in_use', username=username))
+                    conn.send(json.dumps({"kick": True, "reason": get_text('username_already_in_use', username=username)}).encode())
+                    conn.close()
+                    return
+
+                # Check password on connect (dynamic based on current server_password)
+                if self.server_password and client_password != self.server_password:
+                    self._log_to_ui(f"{addr} tried to connect with incorrect password.")
+                    conn.send(json.dumps({"kick": True, "reason": get_text("password_incorrect")}).encode())
+                    conn.close()
+                    return
+                elif self.server_password and not client_password:
+                    self._log_to_ui(f"{addr} tried to connect without password (password required).")
+                    conn.send(json.dumps({"kick": True, "reason": get_text("password_required")}).encode())
+                    conn.close()
+                    return
+
+                self.players[username] = {"x": 300, "y": 300, "shoot": False, "angle": 0}
+                self.alive_status[username] = True
+                self.clients[username] = conn
+                self.player_kills[username] = 0
+
+            self._log_to_ui(get_text('client_connected', username=username, addr=addr))
+
+            while self.server_running:
+                data = conn.recv(4096).decode()
+                if not data:
+                    break
+                
+                data_json = json.loads(data)
+
+                with self.lock:
+                    if data_json.get("shoot") and not self.bullet_data["active"]:
+                        player_x = self.players[username]["x"]
+                        player_y = self.players[username]["y"]
+                        player_angle = data_json.get("angle", 0)
+                        
+                        self.bullet_data["active"] = True
+                        self.bullet_data["x"] = player_x + 20 * math.cos(player_angle)
+                        self.bullet_data["y"] = player_y + 20 * math.sin(player_angle)
+                        self.bullet_data["angle"] = player_angle
+                        self.bullet_data["owner"] = username
+                
+                    if self.alive_status.get(username, False):
+                        self.players[username].update({
                             "x": data_json["x"],
                             "y": data_json["y"],
                             "shoot": data_json.get("shoot", False),
                             "angle": data_json["angle"]
                         })
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_respawned_server_log', username=username)}")
+                    elif username in self.players and not self.alive_status.get(username, False):
+                        if username not in self.operators:
+                            self.alive_status[username] = True
+                            self.players[username].update({
+                                "x": data_json["x"],
+                                "y": data_json["y"],
+                                "shoot": data_json.get("shoot", False),
+                                "angle": data_json["angle"]
+                            })
+                            self._log_to_ui(get_text('player_respawned_server_log', username=username))
 
+                    # Update bullet position only if active
+                    if self.bullet_data["active"]:
+                        self.bullet_data["x"] += self.bullet_data["speed"] * math.cos(self.bullet_data["angle"])
+                        self.bullet_data["y"] += self.bullet_data["speed"] * math.sin(self.bullet_data["angle"])
 
-            # Update bullet position only if active
-            if bullet_data["active"]:
-                bullet_data["x"] += bullet_data["speed"] * math.cos(bullet_data["angle"])
-                bullet_data["y"] += bullet_data["speed"] * math.sin(bullet_data["angle"])
-
-                # Check if bullet is out of bounds
-                if not (-10 <= bullet_data["x"] <= 610 and -10 <= bullet_data["y"] <= 410):
-                    bullet_data["active"] = False
-                
-                # Check for bullet collision with players (if still active)
-                if bullet_data["active"]: 
-                    for target_username, target_info in players.items():
-                        # Skip if target is the owner, an operator, or already dead
-                        if target_username == bullet_data["owner"] or \
-                           target_username in operators or \
-                           not alive_status.get(target_username, False):
-                            continue
-
-                        player_center_x = target_info["x"]
-                        player_center_y = target_info["y"]
-                        player_half_size = 15 
-                        bullet_radius = bullet_data["size"]
-
-                        closest_x = max(player_center_x - player_half_size, min(bullet_data["x"], player_center_x + player_half_size))
-                        closest_y = max(player_center_y - player_half_size, min(bullet_data["y"], player_center_y + player_half_size))
-
-                        distance_x = bullet_data["x"] - closest_x
-                        distance_y = bullet_data["y"] - closest_y
-
-                        distance_squared = (distance_x * distance_x) + (distance_y * distance_y)
-
-                        if distance_squared < (bullet_radius * bullet_radius):
-                            alive_status[target_username] = False
-                            players[target_username]["x"] = 300
-                            players[target_username]["y"] = 300
-                            players[target_username]["shoot"] = False
-                            players[target_username]["angle"] = 0
+                        # Check if bullet is out of bounds
+                        if not (-10 <= self.bullet_data["x"] <= 610 and -10 <= self.bullet_data["y"] <= 410):
+                            self.bullet_data["active"] = False
                             
-                            bullet_data["active"] = False 
-                            print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_killed_server_log', killer=bullet_data['owner'], target=target_username)}") 
-                            
-                            # NEW: Tambahkan kill ke pemilik peluru
-                            if bullet_data["owner"] in player_kills:
-                                player_kills[bullet_data["owner"]] += 1
-                            else:
-                                player_kills[bullet_data["owner"]] = 1 # Inisialisasi jika belum ada
-                            print(f"[{time.strftime('%H:%M:%S')}] Skor Kill {bullet_data['owner']}: {player_kills[bullet_data['owner']]}")
+                        # Check for bullet collision with players (if still active)
+                        if self.bullet_data["active"]:
+                            for target_username, target_info in self.players.items():
+                                if target_username == self.bullet_data["owner"] or \
+                                   target_username in self.operators or \
+                                   not self.alive_status.get(target_username, False):
+                                    continue
 
-                            break 
+                                player_center_x = target_info["x"]
+                                player_center_y = target_info["y"]
+                                player_half_size = 15
+                                bullet_radius = self.bullet_data["size"]
 
-            # Prepare data to send to all clients
-            send_data_dict = {
-                "players": players,
-                "alive": alive_status,
-                "operators": list(operators), 
-                "bullet": bullet_data,
-                "kills": player_kills # NEW: Kirim data kills ke klien
-            }
-            if "ping_request" in data_json and data_json["ping_request"]:
-                send_data_dict["ping"] = True
-            
-            send_data_dict["server_info"] = {
-                "name": server_name,
-                "ip": get_local_ip(),
-                "max_players": max_players,      
-                "current_players": len(players) 
-            }
+                                closest_x = max(player_center_x - player_half_size, min(self.bullet_data["x"], player_center_x + player_half_size))
+                                closest_y = max(player_center_y - player_half_size, min(self.bullet_data["y"], player_center_y + player_half_size))
 
-            with lock:
-                send_data = json.dumps(send_data_dict)
-                for c in clients.values():
-                    try:
-                        c.send(send_data.encode())
-                    except:
-                        pass
+                                distance_x = self.bullet_data["x"] - closest_x
+                                distance_y = self.bullet_data["y"] - closest_y
 
-    except json.JSONDecodeError:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('invalid_json_received', addr=addr)}")
-    except ConnectionResetError:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('client_forcibly_disconnected', username_or_addr=(username if username else addr))}")
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('client_handling_error', username_or_addr=(username if username else addr), error=e)}")
-    finally:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('client_disconnected', username=(username if username else addr))}")
-        with lock:
-            if username in clients:
-                clients[username].close()
-                del clients[username]
-            if username in players:
-                del players[username]
-            if username in alive_status:
-                del alive_status[username]
-            if username in operators:
-                operators.remove(username)
-                print(f"[{time.strftime('%H:%M:%S')}] {get_text('operator_removed_on_disconnect', username=username)}")
-            if username in player_kills: # NEW: Hapus skor kill pemain saat disconnect
-                del player_kills[username]
+                                distance_squared = (distance_x * distance_x) + (distance_y * distance_y)
 
+                                if distance_squared < (bullet_radius * bullet_radius):
+                                    self.alive_status[target_username] = False
+                                    self.players[target_username]["x"] = 300
+                                    self.players[target_username]["y"] = 300
+                                    self.players[target_username]["shoot"] = False
+                                    self.players[target_username]["angle"] = 0
+                                    
+                                    self.bullet_data["active"] = False
+                                    self._log_to_ui(get_text('player_killed_server_log', killer=self.bullet_data['owner'], target=target_username))
+                                    
+                                    if self.bullet_data["owner"] in self.player_kills:
+                                        self.player_kills[self.bullet_data["owner"]] += 1
+                                    else:
+                                        self.player_kills[self.bullet_data["owner"]] = 1
+                                    self._log_to_ui(f"Skor Kill {self.bullet_data['owner']}: {self.player_kills[self.bullet_data['owner']]}")
+                                    
+                                    if tada_sound:
+                                        tada_sound.play() # Play sound on kill
+                                    break
 
-def show_server_tasks_menu():
-    """Menampilkan menu Server Tasks dan menangani pilihan."""
-    global server_running 
-    
-    print(f"\n[{time.strftime('%H:%M:%S')}] {get_text('server_tasks_prompt')}")
-    print(f"- {get_text('task_shutdown')}")
-    print(f"- {get_text('task_restart')}")
-    print(f"- {get_text('task_kick_all')}")
-    print(f"- {get_text('task_set_limit')}") 
-    
-    while True:
-        choice = input(get_text('type_choice')).strip()
-        
-        if choice == "1": # ShutDown
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('shutting_down_server')}")
-            server_running = False
-            with lock:
-                for c in list(clients.values()):
-                    try:
-                        c.send(json.dumps({"shutdown": True}).encode())
-                        c.close()
-                    except:
-                        pass
-                clients.clear()
-                players.clear()
-                alive_status.clear()
-                operators.clear()
-                player_kills.clear() # NEW: Kosongkan kills saat shutdown
-            break 
-        
-        elif choice == "2": # Restart
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('restarting_server')}")
-            server_running = False 
-            with lock:
-                for c in list(clients.values()):
-                    try:
-                        c.send(json.dumps({"shutdown": True}).encode()) 
-                        c.close()
-                    except:
-                        pass
-                clients.clear()
-                players.clear()
-                alive_status.clear()
-                operators.clear()
-                player_kills.clear() # NEW: Kosongkan kills saat restart
-            os.execv(sys.executable, ['python'] + sys.argv)
-            
-        elif choice == "3": # Kick All
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('kicking_all_players')}")
-            with lock:
-                for username_to_kick, conn_to_kick in list(clients.items()): 
-                    try:
-                        conn_to_kick.send(json.dumps({"kick": True, "reason": get_text("kicking_all_players")}).encode())
-                        conn_to_kick.close()
-                        del clients[username_to_kick]
-                        if username_to_kick in players:
-                            del players[username_to_kick]
-                        if username_to_kick in alive_status:
-                            del alive_status[username_to_kick]
-                        if username_to_kick in operators:
-                            operators.remove(username_to_kick)
-                        if username_to_kick in player_kills: # NEW: Hapus skor kill saat kick all
-                            del player_kills[username_to_kick]
-                        print(f"[{time.strftime('%H:%M:%S')}] {username_to_kick} kicked.")
-                    except Exception as e:
-                        print(f"[{time.strftime('%H:%M:%S')}] Error kicking {username_to_kick}: {e}")
-            break 
-        
-        elif choice == "4": # Set Player Limit
-            limit_str = input(get_text('player_limit_prompt')).strip()
-            set_player_limit(limit_str)
-            break 
-        
-        else:
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('invalid_task_choice')}")
+                    # Prepare data to send to all clients
+                    send_data_dict = {
+                        "players": self.players,
+                        "alive": self.alive_status,
+                        "operators": list(self.operators),
+                        "bullet": self.bullet_data,
+                        "kills": self.player_kills
+                    }
+                    if "ping_request" in data_json and data_json["ping_request"]:
+                        send_data_dict["ping"] = True
+                    
+                    # Ensure current server_name and max_players are always sent
+                    send_data_dict["server_info"] = {
+                        "name": self.server_name,
+                        "ip": self.server_host,
+                        "max_players": self.max_players,
+                        "current_players": len(self.players)
+                    }
 
-def command_listener():
-    """
-    Listens for commands from the server console.
-    """
-    global server_running, operators
-    while server_running:
-        try:
-            cmd = input().strip() 
-            if cmd.startswith("kick "):
-                name = cmd.split(" ", 1)[1].strip()
-                with lock:
-                    if name in clients:
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('kicking_player', name=name)}")
+                    send_data = json.dumps(send_data_dict)
+                    # Send to all connected clients
+                    for c_username, c_conn in list(self.clients.items()): # Iterate on a copy as clients might be removed
                         try:
-                            clients[name].send(json.dumps({"kick": True}).encode())
-                            clients[name].close()
-                        except Exception as e:
-                            print(f"[{time.strftime('%H:%M:%S')}] Error sending kick or closing socket for {name}: {e}")
-                        del clients[name]
-                        if name in players:
-                            del players[name]
-                        if name in alive_status:
-                            del alive_status[name]
-                        if name in operators:
-                            operators.remove(name)
-                            print(f"[{time.strftime('%H:%M:%S')}] {get_text('operator_removed_on_disconnect', username=name)}")
-                        if name in player_kills: # NEW: Hapus skor kill saat kick
-                            del player_kills[name]
-                    else:
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_not_found', name=name)}")
-            elif cmd.startswith("op "):
-                name = cmd.split(" ", 1)[1].strip()
-                with lock:
-                    if name in players:
-                        operators.add(name)
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_op_success', name=name)}")
-                        if name in clients:
-                            try:
-                                clients[name].send(json.dumps({"message": get_text("op_message_client")}).encode())
-                            except: pass 
-                    else:
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_op_fail_offline', name=name)}")
-            elif cmd.startswith("unop "):
-                name = cmd.split(" ", 1)[1].strip()
-                with lock:
-                    if name in operators:
-                        operators.remove(name)
-                        print(f"[{time.strftime('%H:%M:%S')}] {get_text('player_unop_success', name=name)}")
-                        if name in clients:
-                            try:
-                                clients[name].send(json.dumps({"message": get_text("unop_message_client")}).encode())
-                            except: pass 
-            
-            elif cmd == "sertask": 
-                show_server_tasks_menu()
-                if not server_running: 
-                    break 
-            
-            elif cmd.startswith("check "):
-                target_username = cmd.split(" ", 1)[1].strip()
-                with lock:
-                    print(f"\n[{time.strftime('%H:%M:%S')}] {get_text('player_status_title', username=target_username)}")
-                    if target_username in clients: 
-                        status_msg = ""
-                        if alive_status.get(target_username, False): 
-                            status_msg = get_text('player_status_online_alive', username=target_username)
-                        else: 
-                            status_msg = get_text('player_status_online_dead', username=target_username)
-                        
-                        print(status_msg)
-                        if target_username in operators:
-                            print(get_text('player_status_op', username=target_username))
-                        if target_username in player_kills: # NEW: Tampilkan skor kill di check command
-                            print(f"  Kills: {player_kills[target_username]}")
-                    else: 
-                        print(get_text('player_status_offline', username=target_username))
-                    print(f"[{time.strftime('%H:%M:%S')}] --------------------")
-            
-            elif cmd == "list":
-                with lock:
-                    online_players = list(players.keys())
-                    print(f"\n[{time.strftime('%H:%M:%S')}] {get_text('player_list_title', count=len(online_players))}")
-                    if not online_players:
-                        print(get_text('player_list_empty'))
-                    else:
-                        for i, uname in enumerate(online_players):
-                            status = get_text('status_alive') if alive_status.get(uname, False) else get_text('status_dead')
-                            op_suffix = get_text('is_operator') if uname in operators else ""
-                            kills_suffix = f" (Kills: {player_kills.get(uname, 0)})" # NEW: Tampilkan kills di list command
-                            print(get_text('player_list_item', index=i+1, username=uname, status=status, operator_suffix=op_suffix) + kills_suffix)
-                    print(f"[{time.strftime('%H:%M:%S')}] --------------------")
-            
-            elif cmd.startswith("playerlimit "): 
-                limit_str = cmd.split(" ", 1)[1].strip()
-                set_player_limit(limit_str)
-            
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] {get_text('unknown_command')}")
-            
-            sys.stdout.write("Ketik : ") 
-            sys.stdout.flush() 
-            
-        except EOFError:
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('eof_received_command_listener')}")
-            server_running = False 
-            break
+                            c_conn.send(send_data.encode())
+                        except Exception as send_e:
+                            self._log_to_ui(f"Error sending data to {c_username}: {send_e}")
+                            # Client might have disconnected, remove them
+                            self._remove_client(c_username)
+
+        except json.JSONDecodeError:
+            self._log_to_ui(get_text('invalid_json_received', addr=addr))
+        except ConnectionResetError:
+            self._log_to_ui(get_text('client_forcibly_disconnected', username_or_addr=(username if username else addr)))
         except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] {get_text('unexpected_command_error', error=e)}")
+            self._log_to_ui(get_text('client_handling_error', username_or_addr=(username if username else addr), error=e))
+        finally:
+            self._log_to_ui(get_text('client_disconnected', username=(username if username else addr)))
+            if username:
+                self._remove_client(username)
 
-def get_local_ip():
-    """Gets the local IP address of the machine."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80)) 
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = "127.0.0.1" 
-    finally:
-        s.close()
-    return IP
+    def _remove_client(self, username):
+        with self.lock:
+            if username in self.clients:
+                try:
+                    self.clients[username].close()
+                except:
+                    pass
+                del self.clients[username]
+            if username in self.players:
+                del self.players[username]
+            if username in self.alive_status:
+                del self.alive_status[username]
+            if username in self.operators:
+                self.operators.remove(username)
+                self._log_to_ui(get_text('operator_removed_on_disconnect', username=username))
+            if username in self.player_kills:
+                del self.player_kills[username]
 
-def display_server_commands(server_name, host_ip, port):
-    print("\n" + "_" * 50)
-    print(f"{get_text('commands_for_server_title')}")
-    print(f"Nama Server : {server_name}")
-    print(f"IP: {host_ip}:{port}")
-    print("_" * 50)
-    print("\n") 
-    print("|     kick [username]         |       check [username]    |")
-    print("\n") 
-    print("|     op [username]           |        list               |")
-    print("\n") 
-    print("|     unop [username]         |        sertask            |")
-    print("\n") 
-    print("|     playerlimit [number]    |                           |") 
-    print("\n") 
-    sys.stdout.write("Ketik : ") 
-    sys.stdout.flush() 
+    def stop_server(self):
+        if not self.server_running:
+            self._log_to_ui("[UI]: Server is not running.")
+            return
+
+        self._log_to_ui(get_text('shutting_down_server'))
+        self.server_running = False
+
+        # Send shutdown signal to all clients
+        with self.lock:
+            for c_username, c_conn in list(self.clients.items()):
+                try:
+                    c_conn.send(json.dumps({"shutdown": True}).encode())
+                    c_conn.close()
+                except Exception as e:
+                    self._log_to_ui(f"Error sending shutdown to {c_username}: {e}")
+            self.clients.clear()
+            self.players.clear()
+            self.alive_status.clear()
+            self.operators.clear()
+            self.player_kills.clear()
+            self.bullet_data["active"] = False # Reset bullet on shutdown
+
+        # Close the server socket
+        if self.server_socket:
+            try:
+                self.server_socket.shutdown(socket.SHUT_RDWR)
+                self.server_socket.close()
+            except OSError as e:
+                self._log_to_ui(f"Error shutting down server socket: {e}")
+            self.server_socket = None
+        
+        # Wait for server threads to finish (optional, but good practice)
+        if self.server_accept_thread and self.server_accept_thread.is_alive():
+            self.server_accept_thread.join(timeout=2) # Give it 2 seconds to finish
+
+        self._log_to_ui(get_text('server_stopped'))
+        self.start_button.config(state=tk.NORMAL)
+        self.stop_button.config(state=tk.DISABLED)
+        self.restart_button.config(state=tk.DISABLED)
+        self.edit_button.config(state=tk.DISABLED) # Disable edit button when server stops
+
+    def restart_server(self):
+        self._log_to_ui(get_text('restarting_server'))
+        self.stop_server() # Stop gracefully first
+        # Give it a moment to truly stop before restarting
+        self.master.after(1000, self.start_server)
+
+    def _edit_server_settings(self):
+        """Opens a pop-up window to edit server name and password."""
+        edit_window = tk.Toplevel(self.master)
+        edit_window.title(get_text("edit_server_settings_title"))
+        edit_window.geometry("350x200")
+        edit_window.transient(self.master)
+        edit_window.grab_set()
+
+        # Server Name
+        tk.Label(edit_window, text=get_text("edit_server_name_label"), font=("Arial", 10)).pack(pady=(10, 2))
+        server_name_entry = tk.Entry(edit_window, width=40, font=("Arial", 10))
+        server_name_entry.insert(0, self.server_name)
+        server_name_entry.pack(pady=2)
+
+        # Server Password
+        tk.Label(edit_window, text=get_text("edit_server_password_label"), font=("Arial", 10)).pack(pady=(10, 2))
+        server_password_entry = tk.Entry(edit_window, width=40, show="*", font=("Arial", 10))
+        # Display a placeholder if password exists, otherwise leave empty
+        if self.server_password:
+            server_password_entry.insert(0, "********") # Placeholder for existing password
+        server_password_entry.pack(pady=2)
+
+        def save_settings():
+            new_name = server_name_entry.get().strip()
+            new_password_raw = server_password_entry.get()
+            
+            # If the password entry is '********' (placeholder) and we had a password,
+            # it means the user didn't change it, so keep the old one.
+            # Otherwise, use the new raw input (empty string means no password).
+            if self.server_password and new_password_raw == "********":
+                new_password = self.server_password
+            elif new_password_raw == "": # User explicitly cleared password
+                new_password = None
+            else:
+                new_password = new_password_raw
+
+            confirm = messagebox.askyesno(
+                get_text("confirm_save_title"),
+                get_text("confirm_save_message"),
+                parent=edit_window
+            )
+
+            if confirm:
+                with self.lock:
+                    self.server_name = new_name if new_name else "DefaultServer"
+                    self.server_password = new_password
+                
+                self._log_to_ui(get_text("changes_saved_message"))
+                edit_window.destroy()
+            else:
+                self._log_to_ui(get_text("changes_discarded_message"))
+                # Reopen the edit window to allow re-editing
+                edit_window.destroy()
+                self._edit_server_settings()
+
+
+        tk.Button(edit_window, text="OK", command=save_settings, font=("Arial", 10), bg="#d0d0d0").pack(pady=10)
+
+    def _handle_command_input(self, event=None):
+        command = self.command_entry.get().strip()
+        self.command_entry.delete(0, tk.END) # Clear input field immediately
+
+        if not command:
+            return
+
+        self._log_to_ui(f"[UI Command]: {command}")
+
+        # Process server commands internally
+        cmd_parts = command.split(" ", 1)
+        cmd_name = cmd_parts[0].lower()
+        cmd_arg = cmd_parts[1].strip() if len(cmd_parts) > 1 else ""
+
+        with self.lock: # Ensure thread safety when modifying server state
+            if cmd_name == "kick":
+                name = cmd_arg
+                if name in self.clients:
+                    self._log_to_ui(get_text('kicking_player', name=name))
+                    try:
+                        self.clients[name].send(json.dumps({"kick": True}).encode())
+                        self.clients[name].close()
+                    except Exception as e:
+                        self._log_to_ui(f"Error sending kick or closing socket for {name}: {e}")
+                    self._remove_client(name)
+                else:
+                    self._log_to_ui(get_text('player_not_found', name=name))
+            elif cmd_name == "op":
+                name = cmd_arg
+                if name in self.players:
+                    self.operators.add(name)
+                    self._log_to_ui(get_text('player_op_success', name=name))
+                    if name in self.clients:
+                        try:
+                            self.clients[name].send(json.dumps({"message": get_text("op_message_client")}).encode())
+                        except: pass
+                else:
+                    self._log_to_ui(get_text('player_op_fail_offline', name=name))
+            elif cmd_name == "unop":
+                name = cmd_arg
+                if name in self.operators:
+                    self.operators.remove(name)
+                    self._log_to_ui(get_text('player_unop_success', name=name))
+                    if name in self.clients:
+                        try:
+                            self.clients[name].send(json.dumps({"message": get_text("unop_message_client")}).encode())
+                        except: pass
+                else:
+                    self._log_to_ui(get_text('player_unop_fail_not_op', name=name))
+            elif cmd_name == "sertask":
+                self._show_server_tasks_menu()
+            elif cmd_name == "check":
+                target_username = cmd_arg
+                self._log_to_ui(get_text('player_status_title', username=target_username))
+                if target_username in self.clients:
+                    status_msg = get_text('player_status_online_alive', username=target_username) if self.alive_status.get(target_username, False) else get_text('player_status_online_dead', username=target_username)
+                    self._log_to_ui(status_msg)
+                    if target_username in self.operators:
+                        self._log_to_ui(get_text('player_status_op', username=target_username))
+                    self._log_to_ui(f"  Kills: {self.player_kills.get(target_username, 0)}")
+                else:
+                    self._log_to_ui(get_text('player_status_offline', username=target_username))
+                self._log_to_ui("--------------------")
+            elif cmd_name == "list":
+                online_players = list(self.players.keys())
+                self._log_to_ui(get_text('player_list_title', count=len(online_players)))
+                if not online_players:
+                    self._log_to_ui(get_text('player_list_empty'))
+                else:
+                    for i, uname in enumerate(online_players):
+                        status = get_text('status_alive') if self.alive_status.get(uname, False) else get_text('status_dead')
+                        op_suffix = get_text('is_operator') if uname in self.operators else ""
+                        kills_suffix = f" (Kills: {self.player_kills.get(uname, 0)})"
+                        self._log_to_ui(get_text('player_list_item', index=i+1, username=uname, status=status, operator_suffix=op_suffix) + kills_suffix)
+                self._log_to_ui("--------------------")
+            elif cmd_name == "playerlimit":
+                self._set_player_limit(cmd_arg)
+            elif cmd_name == "shutdown": # Allow direct shutdown from command bar
+                self.stop_server()
+            elif cmd_name == "restart": # Allow direct restart from command bar
+                self.restart_server()
+            elif cmd_name == "kickall": # Allow direct kick all from command bar
+                self._log_to_ui(get_text('kicking_all_players'))
+                for name in list(self.clients.keys()): # Iterate on a copy
+                    self._log_to_ui(get_text('kicking_player', name=name))
+                    try:
+                        self.clients[name].send(json.dumps({"kick": True}).encode())
+                        self.clients[name].close()
+                    except Exception as e:
+                        self._log_to_ui(f"Error sending kick or closing socket for {name}: {e}")
+                    self._remove_client(name)
+            else:
+                self._log_to_ui(get_text('unknown_command'))
+
+    def _set_player_limit(self, limit_str):
+        try:
+            limit = int(limit_str)
+            if limit < 0:
+                self._log_to_ui(get_text('limit_invalid_negative'))
+            else:
+                self.max_players = limit
+                self._log_to_ui(get_text('player_limit_set', limit=self.max_players))
+        except ValueError:
+            self._log_to_ui(get_text('limit_invalid_number'))
+
+    def _show_server_tasks_menu(self):
+        """Displays a menu for server tasks and handles the choice."""
+        self._log_to_ui(get_text('server_tasks_prompt'))
+        self._log_to_ui(f"- {get_text('task_shutdown')}")
+        self._log_to_ui(f"- {get_text('task_restart')}")
+        self._log_to_ui(f"- {get_text('task_kick_all')}")
+        self._log_to_ui(f"- {get_text('task_set_limit')}")
+        self._log_to_ui(get_text("commands_for_server_title")) # Re-emphasize direct commands
+        self._log_to_ui("You can type 'shutdown', 'restart', 'kickall', 'playerlimit [number]' directly.")
+
+
+    def _on_closing(self):
+        if messagebox.askyesno("Quit", "Are you sure you want to quit? This will stop the server process too."):
+            self.stop_server() # Try to gracefully stop the server threads
+            self.master.destroy() # Destroy the GUI window
+
+    # Helper function for getting user input via messagebox (for start-up)
+    def _get_user_input(self, title, prompt, default_value="", show_password=False):
+        """Shows a simple input dialog for server setup."""
+        result = simpledialog.askstring(title, prompt, initialvalue=default_value, show="*" if show_password else None)
+        return result if result is not None else default_value
 
 def main():
-    global server_running, server_name, server_password
+    global current_language # Need to access global for language selection
 
+    root = tk.Tk()
+
+    # Simple language selection dialog before main UI
+    lang_dialog = tk.Toplevel(root)
+    lang_dialog.title(get_text("language_selection"))
+    lang_dialog.geometry("300x150")
+    lang_dialog.transient(root) # Make it on top of root
+    lang_dialog.grab_set() # Modal dialog
+
+    tk.Label(lang_dialog, text=get_text("language_selection"), font=("Arial", 12)).pack(pady=10)
+    tk.Label(lang_dialog, text=get_text("type_eng"), font=("Arial", 10)).pack()
+    tk.Label(lang_dialog, text=get_text("type_id"), font=("Arial", 10)).pack()
+
+    lang_entry = tk.Entry(lang_dialog, font=("Arial", 10))
+    lang_entry.pack(pady=5)
+    lang_entry.focus_set()
+
+    selected_lang = tk.StringVar()
+
+    def set_and_destroy():
+        choice = lang_entry.get().strip().upper()
+        set_language(choice)
+        selected_lang.set(choice) # Set StringVar to notify main thread
+        lang_dialog.destroy()
+
+    lang_entry.bind("<Return>", lambda event: set_and_destroy())
+    tk.Button(lang_dialog, text="OK", command=set_and_destroy).pack(pady=5)
+
+    root.wait_window(lang_dialog) # Wait for the dialog to close
+
+    app = ConterbitServerApp(root)
+
+    # Initial splash screen in console (optional, but keep it for now)
     splash_screen = """
-    ____  _ __  ______                  __               _____                          
-   / __ )(_) /_/ ____/___  __  ______  / /____  _____   / ___/___  ______   _____  _____
-  / __  / / __/ /   / __ \\/ / / / __ \\/ __/ _ \\/ ___/   \\__ \\/ _ \\/ ___/ | / / _ \\/ ___/
- / /_/ / / /_/ /___/ /_/ / /_/ / / / / /_/  __/ /      ___/ /  __/ /   | |/ /  __/ /    
-/_____/_/\\__\\\\____/\\____/\\__,_/_/_/ /_/\\__/\\___/_/      /____/\\___/\\_/    |___/\\___/_/     
-                                                                                        
+    ____  _ __  ______             __          _____             
+   / __ )(_) /_/ ____/___  __  ______  / /____  _____  / ___/___  ______    _____  _____
+  / __  / / __/ /   / __ \\/ / / / __ \\/ __/ _ \\/ ___/  \\__ \\/ _ \\/ ___/ | / / _ \\/ ___/
+ / /_/ / / /_/ /___/ /_/ / /_/ / / / / /_/  __/ /    ___/ /  __/ /   | |/ /  __/ /   
+/_____/_\\__\\\\____/\\____/\\__,_/_/_/ /_/\\__/\\___/_/     /____/\\___/\\_/    |___/\\___/_/    
+                                                                                           
     """
-    print(splash_screen)
+    print(splash_screen) # This will still print to the console where the script is run
 
-    set_language("ENG") 
-    print(get_text("language_selection"))
-    print(get_text("type_eng"))
-    print(get_text("type_id"))
-    lang_choice = input(get_text("your_choice")).strip().upper()
-    set_language(lang_choice)
-
-    server_name = input(get_text("server_name_prompt"))
-    if not server_name:
-        server_name = "DefaultServer"
-    
-    password_input = input(get_text("server_password_prompt")).strip()
-    if password_input:
-        server_password = password_input
-    else:
-        server_password = None
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
-    
-    HOST = get_local_ip()
-    PORT = 5555
-
-    try:
-        server.bind((HOST, PORT))
-        server.listen() 
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] {get_text('connection_refused_server_bind_error', host=HOST, port=PORT, error=e)}")
-        sys.exit(1) 
-
-    # NEW: Konfirmasi batas pemain saat server dimulai
-    print(f"[{time.strftime('%H:%M:%S')}] {get_text('server_started', server_name=server_name, limit=max_players)}")
-    print(f"[{time.strftime('%H:%M:%S')}] {get_text('share_address', host=HOST, port=PORT)}")
-    
-    display_server_commands(server_name, HOST, PORT)
-
-    if tada_sound:
-        tada_sound.play()
-
-    threading.Thread(target=command_listener, daemon=True).start()
-
-    while server_running:
-        try:
-            conn, addr = server.accept() 
-            threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
-        except socket.timeout:
-            continue
-        except OSError as e:
-            if server_running: 
-                print(f"[{time.strftime('%H:%M:%S')}] Error accept server: {e}")
-            break 
-        except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] Terjadi error tak terduga di loop utama: {e}")
-            break 
-
-    server.close()
-    print(f"[{time.strftime('%H:%M:%S')}] {get_text('server_stopped')}")
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
