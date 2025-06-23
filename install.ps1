@@ -8,9 +8,9 @@ $baseURL = "https://raw.githubusercontent.com/Bruhrbx/CounterBit/main/CounterBit
 
 # == UNDUH FILE UTAMA ==
 Write-Host "`n📦 Mengunduh file utama..." -ForegroundColor Cyan
-Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder\client.py"
-Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder/server.py"
-Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder\version.txt"
+Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder\client.py" -ErrorAction SilentlyContinue
+Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder\server.py" -ErrorAction SilentlyContinue
+Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder\version.txt" -ErrorAction SilentlyContinue
 
 # == SFX ==
 $sfxPath = "$baseFolder\sfx"
@@ -18,13 +18,13 @@ New-Item -ItemType Directory -Force -Path $sfxPath | Out-Null
 Write-Host "`n🎧 Mengunduh suara..." -ForegroundColor Cyan
 $sfxFiles = @("Intro.mp3", "Pew.mp3", "Spawn.mp3", "Tada.mp3", "Dial_Up.mp3")
 foreach ($file in $sfxFiles) {
-    Invoke-WebRequest "$baseURL/sfx/$file" -OutFile "$sfxPath\$file"
+    Invoke-WebRequest "$baseURL/sfx/$file" -OutFile "$sfxPath\$file" -ErrorAction SilentlyContinue
 }
 
 # == UPDATER FILE ==
 $updatePath = "$baseFolder\Update"
 New-Item -ItemType Directory -Force -Path $updatePath | Out-Null
-Invoke-WebRequest "$baseURL/Update/Updater.py" -OutFile "$updatePath\Updater.py"
+Invoke-WebRequest "$baseURL/Update/Updater.py" -OutFile "$updatePath\Updater.py" -ErrorAction SilentlyContinue
 
 # == CEK PYTHON ==
 function Check-Python {
@@ -41,30 +41,38 @@ function Check-Python {
         return $false
     }
 }
+
 function Install-Python {
     Write-Host "`n🚀 Menginstal Python..." -ForegroundColor Yellow
     $installer = "$env:TEMP\python-installer.exe"
     Invoke-WebRequest "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe" -OutFile $installer
     Start-Process -Wait -FilePath $installer -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
     Remove-Item $installer
+    $env:Path += ";C:\Program Files\Python312\Scripts;C:\Program Files\Python312\"
 }
+
 function Install-Pygame {
     Write-Host "`n🎮 Menginstal pygame..." -ForegroundColor Yellow
-    pip install pygame
+    python -m pip install pygame
 }
 
 function Install-Thinker {
-    Write-Host "`n🎮 Menginstal Thinker..." -ForegroundColor Yellow
-    pip install tk
+    Write-Host "`n🖼️ Menginstal tkinter (Thinker)..." -ForegroundColor Yellow
+    python -m pip install tk
 }
-
 
 # == INSTALL PYTHON JIKA BELUM ==
 if (-not (Check-Python)) {
     Install-Python
-    $env:Path += ";C:\Program Files\Python312\Scripts;C:\Program Files\Python312\"
+    if (-not (Check-Python)) {
+        Write-Host "`n❌ Gagal instalasi Python. Silakan install manual." -ForegroundColor Red
+        exit
+    }
 }
+
+# == INSTALL DEPENDENSI ==
 Install-Pygame
+Install-Thinker
 
 # == CEK VERSI ==
 $localVer = Get-Content "$baseFolder\version.txt"
@@ -74,7 +82,6 @@ if ($localVer -ne $remoteVer) {
     $confirm = Read-Host "`n🔁 Versi baru tersedia ($remoteVer). Mau update ulang file? (y/n)"
     if ($confirm -eq "y") {
         Write-Host "`n⬇️  Mengunduh ulang file dari GitHub..." -ForegroundColor Cyan
-        # Ulangi unduh ulang
         Invoke-WebRequest "$baseURL/client.py" -OutFile "$baseFolder/client.py"
         Invoke-WebRequest "$baseURL/server.py" -OutFile "$baseFolder/server.py"
         Invoke-WebRequest "$baseURL/version.txt" -OutFile "$baseFolder/version.txt"
