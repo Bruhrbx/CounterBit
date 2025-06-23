@@ -53,6 +53,12 @@ function Install-Pygame {
     pip install pygame
 }
 
+function Install-Pygame {
+    Write-Host "`n🎮 Menginstal Thinker..." -ForegroundColor Yellow
+    pip install tk
+}
+
+
 # == INSTALL PYTHON JIKA BELUM ==
 if (-not (Check-Python)) {
     Install-Python
